@@ -32,6 +32,22 @@ def _configure_logging() -> logging.Logger:
 
 logger = _configure_logging()
 
+
+def _openapi_servers() -> list[dict[str, str]]:
+    """Return a valid absolute URL for OpenAPI `servers`.
+
+    Priority:
+    1) OPENAPI_SERVER_URL (explicit override)
+    2) RENDER_EXTERNAL_URL (Render-provided public URL)
+    3) Local fallback for development
+    """
+    base_url = (
+        os.getenv("OPENAPI_SERVER_URL")
+        or os.getenv("RENDER_EXTERNAL_URL")
+        or "http://127.0.0.1:8001"
+    ).strip().rstrip("/")
+    return [{"url": base_url}]
+
 app = FastAPI(
     title="UPS Multi-Agent Supervisor API",
     version="1.0.0",
@@ -39,6 +55,7 @@ app = FastAPI(
         "Supervisor-style router API for ChatGPT Actions. "
         "Routes user queries to shipping/tracking/general specialist agents."
     ),
+    servers=_openapi_servers(),
 )
 
 router: SupervisorRouter | None = None
