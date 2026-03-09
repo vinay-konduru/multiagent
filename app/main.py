@@ -62,6 +62,11 @@ def chat(payload: ChatRequest) -> ChatResponse:
         routing_reason=routing_reason,
     )
 
+@app.get("/privacy")
+def privacy():
+    return {
+        "privacy_policy": "User prompts may be sent to our backend API for processing. Data is not stored or shared."
+    }
 
 if __name__ == "__main__":
     import uvicorn
@@ -69,3 +74,4 @@ if __name__ == "__main__":
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8001"))
     uvicorn.run("app.main:app", host=host, port=port, reload=True)
+
