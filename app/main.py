@@ -14,6 +14,9 @@ from app.graph import UPSMultiAgentGraph
 from app.models import ChatRequest, ChatResponse
 from app.supervisor import SupervisorRouter
 
+
+VALID_AGENTS = {"shipping", "tracking", "general"}
+
 load_dotenv()
 
 
@@ -88,6 +91,11 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "ups-multi-agent"}
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"status": "ok", "service": "ups-multi-agent", "docs": "/docs"}
+
+
 @app.post("/chat", response_model=ChatResponse, operation_id="chat")
 def chat(payload: ChatRequest) -> ChatResponse:
     if graph_runner is None:
@@ -105,6 +113,10 @@ def chat(payload: ChatRequest) -> ChatResponse:
     confidence = float(result.get("confidence", 0.55))
     routing_source = str(result.get("routing_source", "fallback"))
     routing_reason = str(result.get("routing_reason", "unknown"))
+
+    if selected_agent not in VALID_AGENTS:
+        logger.error("chat_failed reason=invalid_selected_agent selected_agent=%s", selected_agent)
+        raise HTTPException(status_code=500, detail="Invalid routed agent")
 
     logger.info(
         "chat_routed agent=%s confidence=%s routing_source=%s routing_reason=%s message_length=%s",
@@ -135,4 +147,5 @@ if __name__ == "__main__":
 
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8001"))
-    uvicorn.run("app.main:app", host=host, port=port, reload=True)
+    reload_enabled = os.getenv("UVICORN_RELOAD", "false").strip().lower() in {"1", "true", "yes"}
+    uvicorn.run("app.main:app", host=host, port=port, reload=reload_enabled)
