@@ -8,9 +8,13 @@ from app.agents import AgentName, AgentRunner
 from app.supervisor import SupervisorRouter
 
 
+VALID_AGENTS: tuple[AgentName, AgentName, AgentName] = ("shipping", "tracking", "general")
+
+
 class GraphState(TypedDict, total=False):
     user_message: str
     selected_agent: AgentName
+    responding_agent: AgentName
     confidence: float
     routing_source: str
     routing_reason: str
@@ -51,6 +55,17 @@ class UPSMultiAgentGraph:
 
     def run(self, user_message: str) -> GraphState:
         result = self.graph.invoke({"user_message": user_message})
+
+        routed_agent = result.get("selected_agent")
+        responding_agent = result.get("responding_agent")
+        answer = str(result.get("answer", "")).strip()
+        if routed_agent not in VALID_AGENTS:
+            raise RuntimeError("Invalid routed agent from supervisor")
+        if responding_agent not in VALID_AGENTS:
+            raise RuntimeError("Response was not produced by a specialist agent")
+        if not answer:
+            raise RuntimeError("Specialist agent returned empty answer")
+
         return result
 
     def _supervisor_node(self, state: GraphState) -> GraphState:
@@ -67,15 +82,24 @@ class UPSMultiAgentGraph:
     @staticmethod
     def _route_from_supervisor(state: GraphState) -> Literal["shipping", "tracking", "general"]:
         selected = state.get("selected_agent", "general")
-        if selected not in ("shipping", "tracking", "general"):
+        if selected not in VALID_AGENTS:
             return "general"
         return selected
 
     def _shipping_node(self, state: GraphState) -> GraphState:
-        return {"answer": self.agent_runner.run("shipping", state["user_message"]) }
+        return {
+            "responding_agent": "shipping",
+            "answer": self.agent_runner.run("shipping", state["user_message"]),
+        }
 
     def _tracking_node(self, state: GraphState) -> GraphState:
-        return {"answer": self.agent_runner.run("tracking", state["user_message"]) }
+        return {
+            "responding_agent": "tracking",
+            "answer": self.agent_runner.run("tracking", state["user_message"]),
+        }
 
     def _general_node(self, state: GraphState) -> GraphState:
-        return {"answer": self.agent_runner.run("general", state["user_message"]) }
+        return {
+            "responding_agent": "general",
+            "answer": self.agent_runner.run("general", state["user_message"]),
+        }
